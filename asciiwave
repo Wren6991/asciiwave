@@ -4,11 +4,11 @@ import json5
 import sys
 
 graphics = zip(
-	" ┌─┐┏┓x_╱ ╲┆",
-	"─┘ └┛┗x ╲ ╱┆"
+	" ┌─┐┏┓x_╱ ╲┆╭┄  ",
+	"─┘ └┛┗x ╲ ╱┆  ╰┄"
 )
 
-state_map = dict(zip("0+1-rfxz< >|", graphics))
+state_map = dict(zip("0+1-rfxz< >|UuDd", graphics))
 
 class StringStream:
 	def __init__(self, s):
@@ -27,65 +27,109 @@ class StringStream:
 	def __len__(self):
 		return len(self._s) - self._offs
 
+
 def put_state(outs, state):
 	for i, c in enumerate(state_map[state]):
 		outs[i] += c
+
+# WaveDrom behaviour is surprisingly complex; this is an approximation
+def cmd_10(cmd, prev_cmd, width, charwidth, data, outs):
+	h_cmds = "1hHu"
+	l_cmds = "0lLd"
+	high = cmd in h_cmds
+	hard_edge = cmd in "HL" or \
+		(high and prev_cmd in (l_cmds + "zx=2345")) or \
+		(not high and prev_cmd in (h_cmds + "zx=2345")) or \
+		(cmd in "1h" and prev_cmd in "1pP") or \
+		(cmd in "0l" and prev_cmd in "0nN")
+	if cmd == "u":
+		edge, flat = ("U", "u")
+	elif cmd == "d":
+		edge, flat = ("D", "d")
+	elif cmd == "H":
+		edge, flat = ("r", "1")
+	elif cmd == "L":
+		edge, flat = ("f", "0")
+	elif high:
+		edge, flat = ("+", "1")
+	else:
+		edge, flat = ("-", "0")
+	rendered = edge * hard_edge + flat * (width - hard_edge)
+	for s in rendered:
+		put_state(outs, s)
+
+def cmd_clk(cmd, prev_cmd, width, charwidth, data, outs):
+	shape = {
+		"p": "+1-0",
+		"P": "r1-0",
+		"n": "-0+1",
+		"N": "f0+1"
+	}[cmd]	
+	if (cmd == "p" and prev_cmd in "hH") or (cmd == "n" and prev_cmd in "lL"):
+		shape = shape[1] + shape[1:]
+	for i in range(width // charwidth):
+		put_state(outs, shape[0])
+		for j in range(charwidth // 2 - 1):
+			put_state(outs, shape[1])
+		put_state(outs, shape[2])
+		for j in range(charwidth // 2 - 1):
+			put_state(outs, shape[3])
+
+def cmd_bus(cmd, prev_cmd, width, charwidth, data, outs):
+	assert(cmd in "=2345")
+	if len(data) > 0:
+		contents = data.pop(0)
+	else:
+		contents = ""
+	space = width - 2
+	contents = contents[:min(len(contents), space)]
+	contents = "{: ^{}}".format(contents, space)
+	put_state(outs, "<")
+	for c in contents:
+		for i in range(len(outs)):
+			outs[i] += c if i == len(outs) // 2 else " "
+	put_state(outs, ">")
+
+def cmd_separator(cmd, prev_cmd, width, charwidth, data, outs):
+	put_state(outs, "|")
+
+
+def cmd_other(cmd, prev_cmd, width, charwidth, data, outs):
+	assert(cmd in "zZxX")
+	for i in range(width):
+		put_state(outs, cmd.lower())
+
+cmd_handlers = {}
+for c in "1hHu0lLd":
+	cmd_handlers[c] = cmd_10
+for c in "pPnN":
+	cmd_handlers[c] = cmd_clk
+for c in "=2345":
+	cmd_handlers[c] = cmd_bus
+for c in "xXzZ":
+	cmd_handlers[c] = cmd_other
+cmd_handlers["|"] = cmd_separator
 
 def render_signal(wave, data, charwidth):
 	assert(charwidth >=4 and charwidth % 2 == 0)
 	outs = [""] * len(state_map[" "])
 	wstream = StringStream(wave)
-
+	# Bit of a hack: command handlers are allowed to pop from this
+	data = data[:]
+	prev_cmd = "x"
 	while len(wstream):
 		cmd = wstream.get(1)
 		if cmd == ".":
+			cmd = prev_cmd
+		if cmd not in cmd_handlers:
 			cmd = "x"
 		width = charwidth
 		while wstream.peek(1) == ".":
 			wstream.get(1)
 			width += charwidth
-
-		if cmd in "1hH":
-			put_state(outs, "r" if cmd == "H" else "+")
-			for i in range(width - 1):
-				put_state(outs, "1")
-		elif cmd in "0lL":
-			put_state(outs, "f" if cmd == "L" else "-")
-			for i in range(width - 1):
-				put_state(outs, "0")
-		elif cmd in "pPnN":
-			shape = {
-				"p": "+1-0",
-				"P": "r1-0",
-				"n": "-0+1",
-				"N": "f0+1"
-			}[cmd]
-			for i in range(width // charwidth):
-				put_state(outs, shape[0])
-				for j in range(charwidth // 2 - 1):
-					put_state(outs, shape[1])
-				put_state(outs, shape[2])
-				for j in range(charwidth // 2 - 1):
-					put_state(outs, shape[3])
-		elif cmd in "xXzZ":
-			for i in range(charwidth):
-				put_state(outs, cmd.lower())
-		elif cmd in "=2345":
-			if len(data) > 0:
-				contents = data.pop(0)
-			else:
-				contents = ""
-			space = width - 2
-			contents = contents[:min(len(contents), space)]
-			contents = "{: ^{}}".format(contents, space)
-			put_state(outs, "<")
-			for c in contents:
-				for i in range(len(outs)):
-					outs[i] += c if i == len(outs) // 2 else " "
-			put_state(outs, ">")
-		elif cmd == "|":
-			put_state(outs, "|")
-
+		cmd_handlers[cmd](cmd, prev_cmd, width, charwidth, data, outs)
+		if cmd != "|":
+			prev_cmd = cmd
 	return outs
 
 def render_json(s):
@@ -106,7 +150,8 @@ def render_json(s):
 		if len(s) == 0:
 			print("")
 			continue
-		name_just = "{: <{}}: ".format(s["name"], max_name_len)
+		name = s["name"] if "name" in s else ""
+		name_just = "{: <{}}: ".format(name, max_name_len)
 		sig_lines = render_signal(s["wave"], s["data"] if "data" in s else [], 6)
 		for i, l in enumerate(sig_lines):
 			if i == len(state_map[" "]) - 1:
