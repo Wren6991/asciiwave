@@ -35,6 +35,27 @@ asciiwave requires the `json5` library from PyPI, as a lot of WaveJSON samples f
 $ pip3 install json5 jsonschema
 ```
 
+asciiwave features a watch mode (`-w`), which will continously poll a file on disk, and redraw whenever the
+file changes. This can be used interactively alongside a text editor.
+
+
+```
+$ ./asciiwave --watch example/step4.json
+
+             ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┌──┐  ┆┌──┐  ┌──┐  ┌──┐  
+clk        : ┘  └──┘  └──┘  └──┘  └──┘  └──┘  └──┆┘  └──┘  └──┘  └──
+             xxxxxxxxxxxx╱    ╲╱    ╲╱    ╲xxxxxx┆╱          ╲xxxxxx
+Data       : xxxxxxxxxxxx╲head╱╲body╱╲tail╱xxxxxx┆╲   data   ╱xxxxxx
+             ┐           ┌─────────────────┐     ┆┌───────────┐     
+Request    : └───────────┘                 └─────┆┘           └─────
+
+             ┌───────────────────────────────────┆┐     ┌───────────
+Acknowledge: ┘                                   ┆└─────┘           
+
+Watching file example/step4.json
+Ctrl-C to exit
+```
+
 WaveJSON Subset
 ---------------
 

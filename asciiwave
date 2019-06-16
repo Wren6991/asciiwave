@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import argparse
 import click
@@ -6,6 +7,7 @@ import itertools
 import json5
 import jsonschema
 import time
+import traceback
 import sys
 
 __doc__ = """
@@ -40,6 +42,10 @@ It supports:
   of each wave unit, in characters, is multiplied by `period` and rounded down.
 - The `phase` signal property: this can be a floating point number. The signal
   is advanced (if positive) or retarded (negative) by this number of periods.
+
+Watch mode (-w) will continously poll a file on disk, and redraw whenever the
+file changes. This can be used interactively alongside a text editor.
+
 """
 
 graphics = zip(
@@ -63,6 +69,7 @@ wavejson_schema = {
 			"items": {
 				"type": "object",
 				"properties": {
+					"name": {"type": "string"},
 					"wave": {"type": "string"},
 					"data": {
 						"type": ["array", "string"],
@@ -70,10 +77,12 @@ wavejson_schema = {
 					},
 					"phase": {"type": "number"},
 					"period": {"type": "number"}
-				}
+				},
+				"additionalProperties": False
 			}
 		}
-	}
+	},
+	"additionalProperties": False
 }
 
 def put_state(outs, state):
@@ -217,7 +226,9 @@ def render_json(s, out):
 		lead = int(s["phase"] * charwidth) if "phase" in s else 0
 		lag = max(-lead, 0)
 		lead = max(lead, 0)
-		sig_lines = render_signal(s["wave"], s["data"] if "data" in s else [], charwidth)
+		sig_lines = render_signal(
+			s["wave"] if "wave" in s else "",
+			s["data"] if "data" in s else [], charwidth)
 		for i, l in enumerate(sig_lines):
 			if i == len(state_map[" "]) - 1:
 				out.write(name_just)
@@ -227,9 +238,30 @@ def render_json(s, out):
 			out.write(l[lead:] + "\n")
 
 if __name__ == "__main__":
+	# Preserve newlines in docstring:
 	parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
 	parser.epilog = __doc__
 	parser.add_argument("src", help="WaveJSON source file")
+	parser.add_argument("-w", "--watch", action="store_true",
+		help="Watch file, continuously update and redraw")
 	args = parser.parse_args()
-	with open(args.src) as ifile:
+
+	if args.watch:
+		prev_src = None
+		while True:
+			ifile = open(args.src)
+			src = ifile.read()
+			ifile.close()
+			if src != prev_src:
+				click.clear()
+				try:
+					render_json(src, sys.stdout)
+				except Exception:
+					traceback.print_exc(file=sys.stdout)
+				print("\nWatching file " + args.src)
+				print("Ctrl-C to exit")
+				prev_src = src
+			time.sleep(0.2)
+	else:
+		ifile = open(args.src)
 		render_json(ifile.read(), sys.stdout)
