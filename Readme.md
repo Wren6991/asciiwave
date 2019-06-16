@@ -29,14 +29,35 @@ WaveDrom would usually render a PNG or SVG like the below:
 
 However, PNGs can not be pasted into comments in your HDL project!
 
-asciiwave requires the `json5` library from PyPI, as a lot of WaveJSON samples floating around on the internet rely on non-vanilla-JSON features like unquoted keys, single-quoted strings and trailing commas. The `jsonschema` library is also used to validate the WaveJSON input against the subse we support. On a recent Ubuntu, these can be obtained via:
+asciiwave requires the `json5` library from PyPI, as a lot of WaveJSON samples floating around on the internet rely on non-vanilla-JSON features like unquoted keys, single-quoted strings and trailing commas. The `jsonschema` library is also required, for input validation. These can be obtained via:
 
 ```
 $ pip3 install json5 jsonschema
 ```
 
-Alternatively, the core `json` module could be used, to avoid the external dependency:
+WaveJSON Subset
+---------------
+
+asciiwave does not implement the full gamut of WaveJSON features. It supports:
+
+- `wave` commands: `1hHu 0lLd pPnN =2345 zx |`
+- The `hscale` config property: the width of each time unit is `hscale * 2 + 2` characters.
+- The `period` signal property: this can be a floating point number. The width of each wave time unit is multiplied by `period` and rounded down.
+- The `phase` signal property: this can be a floating point number. The signal is advanced (positive) or retarded (negative) by this number of periods.
+- The `data` signal property, both as an array of strings, and a singl string with whitespace-separated contents.
+
+Graphics
+--------
+
+asciiwave defines its graphics like this:
 
 ```
-$ sed -i 's/json5/json/' ./asciiwave
+graphics = zip(
+	" ┌─┐┏┓x_╱ ╲┆╭┄  ",
+	"─┘ └┛┗x ╲ ╱┆  ╰┄"
+)
+
+state_map = dict(zip("0+1-rfxz< >|UuDd", graphics))
 ```
+
+Changing the `graphics` variable will alter the output accordingly: for instance, if you can not use the Unicode box drawing characters. The height is not fixed at 2 lines; any positive number of lines will do. However each state must be exactly one character wide.
