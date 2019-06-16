@@ -1,14 +1,51 @@
 #!/usr/bin/env python3
 
+import argparse
+import click
+import itertools
 import json5
 import jsonschema
+import time
 import sys
+
+__doc__ = """
+asciiwave is a tool to convert WaveDrom timing diagrams into ASCII art.
+
+For example:
+
+```
+$ cat example/step3.json
+{ signal: [
+  { name: "clk",  wave: "P......" },
+  { name: "bus",  wave: "x.==.=x", data: ["head", "body", "tail", "data"] },
+  { name: "wire", wave: "0.1..0." }
+]}
+
+$ ./asciiwave example/step3.json
+      ┏──┐  ┏──┐  ┏──┐  ┏──┐  ┏──┐  ┏──┐  ┏──┐  
+clk : ┛  └──┛  └──┛  └──┛  └──┛  └──┛  └──┛  └──
+      xxxxxxxxxxxx╱    ╲╱          ╲╱    ╲xxxxxx
+bus : xxxxxxxxxxxx╲head╱╲   body   ╱╲tail╱xxxxxx
+      ┐           ┌─────────────────┐           
+wire: └───────────┘                 └───────────
+```
+
+It supports:
+- `wave` commands: `1hHu 0lLd pPnN =2345 zx |`
+- The `data` signal property: either an array of strings, or a single string
+  containing whitespace-separated values.
+- The `hscale` config property: the width of each time unit is `hscale * 2 + 2`
+  characters.
+- The `period` signal property: this can be a floating point number. The width
+  of each wave unit, in characters, is multiplied by `period` and rounded down.
+- The `phase` signal property: this can be a floating point number. The signal
+  is advanced (if positive) or retarded (negative) by this number of periods.
+"""
 
 graphics = zip(
 	" ┌─┐┏┓x_╱ ╲┆╭┄  ",
 	"─┘ └┛┗x ╲ ╱┆  ╰┄"
 )
-
 state_map = dict(zip("0+1-rfxz< >|UuDd", graphics))
 
 # Define the WaveJSON subset we support
@@ -109,45 +146,54 @@ def cmd_other(cmd, prev_cmd, width, charwidth, data, outs):
 	for i in range(width):
 		put_state(outs, cmd.lower())
 
-cmd_handlers = {}
-for c in "1hHu0lLd":
-	cmd_handlers[c] = cmd_10
-for c in "pPnN":
-	cmd_handlers[c] = cmd_clk
-for c in "=2345":
-	cmd_handlers[c] = cmd_bus
-for c in "xXzZ":
-	cmd_handlers[c] = cmd_other
-cmd_handlers["|"] = cmd_separator
 
 def render_signal(wave, data, charwidth):
+	if not hasattr(render_signal, "handlers"):
+		render_signal.handlers = {}
+		for c in "1hHu0lLd":
+			render_signal.handlers[c] = cmd_10
+		for c in "pPnN":
+			render_signal.handlers[c] = cmd_clk
+		for c in "=2345":
+			render_signal.handlers[c] = cmd_bus
+		for c in "xXzZ":
+			render_signal.handlers[c] = cmd_other
+		render_signal.handlers["|"] = cmd_separator
 	assert(charwidth >=4 and charwidth % 2 == 0)
+
 	outs = [""] * len(state_map[" "])
 	if type(data) is str:
 		data = data.split()
 	else:
 		data = data[:]
 	prev_cmd = "x"
-	offs = 0
-	while offs < len(wave):
-		cmd = wave[offs]
-		offs += 1
+	wstream = iter(wave)
+
+	while True:
+		cmd = next(wstream, None)
+		if cmd is None:
+			break
 		if cmd == ".":
 			cmd = prev_cmd
-		if cmd not in cmd_handlers:
+		if cmd not in render_signal.handlers:
 			cmd = "x"
 		width = charwidth
-		# WD edge case: . refers to command *before* separator
-		while cmd != "|" and offs < len(wave) and wave[offs] == ".":
-			offs += 1
-			width += charwidth
-		cmd_handlers[cmd](cmd, prev_cmd, width, charwidth, data, outs)
+		# . refers to command *before* |, so terminate early and don't touch prev_cmd
+		while cmd != "|":
+			next_cmd = next(wstream, None)
+			if next_cmd == ".":
+				width += charwidth
+			else:
+				wstream = itertools.chain([next_cmd], wstream)
+				break
+		render_signal.handlers[cmd](cmd, prev_cmd, width, charwidth, data, outs)
 		if cmd != "|":
 			prev_cmd = cmd
+
 	return outs
 
-def render_json(s):
-	# Current we spend ~95% of our time in the parser (?):
+def render_json(s, out):
+	# Currently we spend ~95% of our time in the parser (?):
 	obj = json5.loads(s)
 	jsonschema.Draft6Validator(wavejson_schema).validate(obj)
 	# Find longest signal name, and handle config
@@ -161,7 +207,7 @@ def render_json(s):
 		hscale = 6
 
 	# Second pass: actually render
-	for s in obj["signal"]:
+	for s in (obj["signal"] if "signal" in obj else []):
 		if len(s) == 0:
 			print("")
 			continue
@@ -174,10 +220,16 @@ def render_json(s):
 		sig_lines = render_signal(s["wave"], s["data"] if "data" in s else [], charwidth)
 		for i, l in enumerate(sig_lines):
 			if i == len(state_map[" "]) - 1:
-				sys.stdout.write(name_just + " " * lag)
+				out.write(name_just)
 			else:
-				sys.stdout.write(" " * (len(name_just) + lag))
-			print(l[lead:])
+				out.write(" " * len(name_just))
+			out.write(" " * lag)
+			out.write(l[lead:] + "\n")
 
 if __name__ == "__main__":
-	render_json(open(sys.argv[1]).read())
+	parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
+	parser.epilog = __doc__
+	parser.add_argument("src", help="WaveJSON source file")
+	args = parser.parse_args()
+	with open(args.src) as ifile:
+		render_json(ifile.read(), sys.stdout)

@@ -44,7 +44,7 @@ asciiwave does not implement the full gamut of WaveJSON features. It supports:
 - The `hscale` config property: the width of each time unit is `hscale * 2 + 2` characters.
 - The `period` signal property: this can be a floating point number. The width of each wave time unit is multiplied by `period` and rounded down.
 - The `phase` signal property: this can be a floating point number. The signal is advanced (positive) or retarded (negative) by this number of periods.
-- The `data` signal property, both as an array of strings, and a singl string with whitespace-separated contents.
+- The `data` signal property: either an array of strings, or a single string containing whitespace-separated values.
 
 Graphics
 --------
