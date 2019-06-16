@@ -29,8 +29,14 @@ WaveDrom would usually render a PNG or SVG like the below:
 
 However, PNGs can not be pasted into comments in your HDL project!
 
-asciiwave requires the `json5` library from PyPI, as a lot of WaveJSON samples floating around on the internet rely on non-vanilla-JSON features like unquoted keys, single-quoted strings and trailing commas. On a recent Ubuntu, this can be installed using
+asciiwave requires the `json5` library from PyPI, as a lot of WaveJSON samples floating around on the internet rely on non-vanilla-JSON features like unquoted keys, single-quoted strings and trailing commas. The `jsonschema` library is also used to validate the WaveJSON input against the subse we support. On a recent Ubuntu, these can be obtained via:
 
 ```
-$ pip3 install json5
+$ pip3 install json5 jsonschema
+```
+
+Alternatively, the core `json` module could be used, to avoid the external dependency:
+
+```
+$ sed -i 's/json5/json/' ./asciiwave
 ```
