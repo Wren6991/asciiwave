@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import click
 import itertools
 import json5
 import jsonschema
@@ -292,7 +291,7 @@ if __name__ == "__main__":
 			src = ifile.read()
 			ifile.close()
 			if src != prev_src:
-				click.clear()
+				print("\033[H\033[J") # VT100 clear command
 				try:
 					render_json(src, sys.stdout, graphics, force_hscale=args.hscale)
 				except Exception:
