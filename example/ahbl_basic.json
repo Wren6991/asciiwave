@@ -1,0 +1,10 @@
+{config: {hscale: 2},
+ signal: [
+  {name: 'clk', wave:    'P.......'},
+  {name: 'htrans', wave: '=.===...', data: ['IDLE', 'NSEQ', 'NSEQ', 'IDLE']},
+  {name: 'haddr', wave:  'xx==xxxx', data: ['A', 'B', 'C', 'D']},
+  {name: 'hwrite', wave: 'xx10xxxx'},
+  {name: 'hwdata', wave: 'xxx=xxxx', data: ['A']},
+  {name: 'hrdata', wave: 'xxxx=xxx', data: ['B']},
+]}
+
