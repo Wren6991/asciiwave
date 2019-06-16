@@ -221,7 +221,7 @@ def render_signal(wave, data, charwidth, graphics_map):
 
 	return outs
 
-def render_json(src, out, graphics):
+def render_json(src, out, graphics, force_hscale=None):
 	# Currently we spend ~95% of our time in the JSON parser
 	obj = json5.loads(src)
 	jsonschema.Draft6Validator(wavejson_schema).validate(obj)
@@ -235,6 +235,8 @@ def render_json(src, out, graphics):
 		hscale = int(obj["config"]["hscale"] * 2 + 2)
 	except KeyError:
 		hscale = 6
+	if force_hscale is not None:
+		hscale = force_hscale * 2 + 2
 
 	# Second pass: actually render
 	for s in (obj["signal"] if "signal" in obj else []):
@@ -258,6 +260,12 @@ def render_json(src, out, graphics):
 			out.write(" " * lag)
 			out.write(l[lead:] + "\n")
 
+def posint(x):
+	_x = int(x)
+	if _x <= 0:
+		raise TypeError(x)
+	return _x
+
 if __name__ == "__main__":
 	# Preserve newlines in docstring:
 	parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -265,7 +273,10 @@ if __name__ == "__main__":
 	parser.add_argument("src", help="WaveJSON source file")
 	parser.add_argument("-w", "--watch", action="store_true",
 		help="Watch file, continuously update and redraw")
-	parser.add_argument("--graphics", choices=["default", "tiny", "tall"], default="default")
+	parser.add_argument("-g", "--graphics", choices=["default", "tiny", "tall"],
+		default="default", help="Use a different graphics tileset")
+	parser.add_argument("--hscale", type=posint,
+		help="Force hscale to a different value than specified in src config.")
 	args = parser.parse_args()
 
 	graphics = {
@@ -283,7 +294,7 @@ if __name__ == "__main__":
 			if src != prev_src:
 				click.clear()
 				try:
-					render_json(src, sys.stdout, graphics)
+					render_json(src, sys.stdout, graphics, force_hscale=args.hscale)
 				except Exception:
 					traceback.print_exc(file=sys.stdout)
 				print("\nWatching file " + args.src)
@@ -292,4 +303,4 @@ if __name__ == "__main__":
 			time.sleep(0.2)
 	else:
 		ifile = open(args.src)
-		render_json(ifile.read(), sys.stdout, graphics)
+		render_json(ifile.read(), sys.stdout, graphics, force_hscale=args.hscale)

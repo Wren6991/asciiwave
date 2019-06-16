@@ -56,13 +56,40 @@ Watching file example/step4.json
 Ctrl-C to exit
 ```
 
+There are simple command-line options for formatting:
+
+```
+$ ./asciiwave --hscale=4 --graphics=tall example/step4.json
+             ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┌────┐    ┆┌────┐    ┌────┐    ┌────┐    
+             │    │    │    │    │    │    │    │    │    │    │    │    ┆│    │    │    │    │    │    
+clk        : ┘    └────┘    └────┘    └────┘    └────┘    └────┘    └────┆┘    └────┘    └────┘    └────
+             xxxxxxxxxxxxxxxxxxxx╱        ╲╱        ╲╱        ╲xxxxxxxxxx┆╱                  ╲xxxxxxxxxx
+             xxxxxxxxxxxxxxxxxxxx   head      body      tail   xxxxxxxxxx┆        data        xxxxxxxxxx
+Data       : xxxxxxxxxxxxxxxxxxxx╲        ╱╲        ╱╲        ╱xxxxxxxxxx┆╲                  ╱xxxxxxxxxx
+             ┐                   ┌─────────────────────────────┐         ┆┌───────────────────┐         
+             │                   │                             │         ┆│                   │         
+Request    : └───────────────────┘                             └─────────┆┘                   └─────────
+
+             ┌───────────────────────────────────────────────────────────┆┐         ┌───────────────────
+             │                                                           ┆│         │                   
+Acknowledge: ┘                                                           ┆└─────────┘                   
+
+$ ./asciiwave --hscale=1 --graphics=tiny example/step4.json
+clk        : ┌─┐_┌─┐_┌─┐_┌─┐_┌─┐_┌─┐_┆┌─┐_┌─┐_┌─┐_
+Data       : xxxxxxxx<he><bo><ta>xxxx┆< data >xxxx
+Request    : ┐_______┌───────────┐___┆┌───────┐___
+
+Acknowledge: ┌───────────────────────┆┐___┌───────
+
+```
+
 WaveJSON Subset
 ---------------
 
 asciiwave does not implement the full gamut of WaveJSON features. It supports:
 
 - `wave` commands: `1hHu 0lLd pPnN =2345 zx |`
-- The `hscale` config property: the width of each time unit is `hscale * 2 + 2` characters.
+- The `hscale` config property: the width of each time unit is `hscale * 2 + 2` characters. This is overridden by the `--hscale` command line parameter.
 - The `period` signal property: this can be a floating point number. The width of each wave time unit is multiplied by `period` and rounded down.
 - The `phase` signal property: this can be a floating point number. The signal is advanced (positive) or retarded (negative) by this number of periods.
 - The `data` signal property: either an array of strings, or a single string containing whitespace-separated values.
@@ -73,12 +100,13 @@ Graphics
 asciiwave defines its graphics like this:
 
 ```
-graphics = zip(
-	" ┌─┐┏┓x_╱ ╲┆╭┄  ",
-	"─┘ └┛┗x ╲ ╱┆  ╰┄"
-)
-
-state_map = dict(zip("0+1-rfxz< >|UuDd", graphics))
+graphics_default = [
+  "0+1-rfxz< >|UuDd",
+  " ┌─┐┏┓x_╱ ╲┆╭┄  ",
+  "─┘ └┛┗x ╲ ╱┆  ╰┄"
+]
 ```
 
-Changing the `graphics` variable will alter the output accordingly: for instance, if you can not use the Unicode box drawing characters. The height is not fixed at 2 lines; any positive number of lines will do. However each state must be exactly one character wide.
+The first line is a key which maps asciiwave's internal representation of wire state to columns of the graphics; the following lines contain the actual graphics. These can be modified if you can't use the Unicode box drawing characters, or have found better-looking characters.
+
+The height is not fixed at 2 lines; any positive number of lines will do. However, the width of each wire state is limited to one column, to simplify rendering (this will be fixed)
