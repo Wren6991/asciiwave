@@ -114,8 +114,10 @@ def render_signal(wave, data, charwidth):
 	assert(charwidth >=4 and charwidth % 2 == 0)
 	outs = [""] * len(state_map[" "])
 	wstream = StringStream(wave)
-	# Bit of a hack: command handlers are allowed to pop from this
-	data = data[:]
+	if type(data) is str:
+		data = data.split()
+	else:
+		data = data[:]
 	prev_cmd = "x"
 	while len(wstream):
 		cmd = wstream.get(1)
@@ -124,7 +126,8 @@ def render_signal(wave, data, charwidth):
 		if cmd not in cmd_handlers:
 			cmd = "x"
 		width = charwidth
-		while wstream.peek(1) == ".":
+		# WD edge case: . refers to command before separator
+		while cmd != "|" and wstream.peek(1) == ".":
 			wstream.get(1)
 			width += charwidth
 		cmd_handlers[cmd](cmd, prev_cmd, width, charwidth, data, outs)
@@ -138,11 +141,15 @@ def render_json(s):
 	# First pass: basic validation, and get longest name
 	for k in obj:
 		assert(k in ["config", "signal"])
+	try:
+		hscale = int(obj["config"]["hscale"] * 2 + 2)
+	except KeyError:
+		hscale = 6
 	max_name_len = 0
 	for s in obj["signal"]:
 		assert(type(s) is dict)
 		for k in s:
-			assert(k in ["name", "wave", "data"])
+			assert(k in ["name", "wave", "data", "period", "phase"])
 		if "name" in s:
 			max_name_len = max(max_name_len, len(s["name"]))
 	# Second pass: actually render
@@ -152,13 +159,23 @@ def render_json(s):
 			continue
 		name = s["name"] if "name" in s else ""
 		name_just = "{: <{}}: ".format(name, max_name_len)
-		sig_lines = render_signal(s["wave"], s["data"] if "data" in s else [], 6)
+		try:
+			charwidth = int(s["period"] * hscale)
+		except KeyError:
+			charwidth = hscale
+		if "phase" in s:
+			lead = int(s["phase"] * charwidth)
+		else:
+			lead = 0
+		lag = max(-lead, 0)
+		lead = max(lead, 0)
+		sig_lines = render_signal(s["wave"], s["data"] if "data" in s else [], charwidth)
 		for i, l in enumerate(sig_lines):
 			if i == len(state_map[" "]) - 1:
-				sys.stdout.write(name_just)
+				sys.stdout.write(name_just + " " * lag)
 			else:
-				sys.stdout.write(" " * len(name_just))
-			print(l)
+				sys.stdout.write(" " * (len(name_just) + lag))
+			print(l[lead:])
 
 if __name__ == "__main__":
 	render_json(open(sys.argv[1]).read())
