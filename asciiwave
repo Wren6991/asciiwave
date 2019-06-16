@@ -48,11 +48,24 @@ file changes. This can be used interactively alongside a text editor.
 
 """
 
-graphics = zip(
+# First the key, then the graphics lines
+graphics_tiny = [
+	"0+1-rfxz< >|UuDd",
+	"_┌─┐┏┓xz< >┆╭┄╰┄",
+]
+
+graphics_default = [
+	"0+1-rfxz< >|UuDd",
 	" ┌─┐┏┓x_╱ ╲┆╭┄  ",
 	"─┘ └┛┗x ╲ ╱┆  ╰┄"
-)
-state_map = dict(zip("0+1-rfxz< >|UuDd", graphics))
+]
+
+graphics_tall = [
+	"0+1-rfxz< >|UuDd",
+	" ┌─┐┏┓x ╱ ╲┆╭┄  ",
+	" │ │┃┃x─   ┆┆ ┆ ",
+	"─┘ └┛┗x ╲ ╱┆  ╰┄"
+]
 
 # Define the WaveJSON subset we support
 wavejson_schema = {
@@ -85,12 +98,8 @@ wavejson_schema = {
 	"additionalProperties": False
 }
 
-def put_state(outs, state):
-	for i, c in enumerate(state_map[state]):
-		outs[i] += c
-
 # WaveDrom behaviour is surprisingly complex; this is an approximation
-def cmd_10(cmd, prev_cmd, width, charwidth, data, outs):
+def cmd_10(cmd, prev_cmd, width, charwidth, data, put):
 	h_cmds = "1hHu"
 	l_cmds = "0lLd"
 	high = cmd in h_cmds
@@ -113,9 +122,9 @@ def cmd_10(cmd, prev_cmd, width, charwidth, data, outs):
 		edge, flat = ("-", "0")
 	rendered = edge * hard_edge + flat * (width - hard_edge)
 	for s in rendered:
-		put_state(outs, s)
+		put(s)
 
-def cmd_clk(cmd, prev_cmd, width, charwidth, data, outs):
+def cmd_clk(cmd, prev_cmd, width, charwidth, data, put):
 	shape = {
 		"p": "+1-0",
 		"P": "r1-0",
@@ -125,14 +134,14 @@ def cmd_clk(cmd, prev_cmd, width, charwidth, data, outs):
 	if (cmd == "p" and prev_cmd in "hH") or (cmd == "n" and prev_cmd in "lL"):
 		shape = shape[1] + shape[1:]
 	for i in range(width // charwidth):
-		put_state(outs, shape[0])
+		put(shape[0])
 		for j in range(charwidth // 2 - 1):
-			put_state(outs, shape[1])
-		put_state(outs, shape[2])
+			put(shape[1])
+		put(shape[2])
 		for j in range(charwidth // 2 - 1):
-			put_state(outs, shape[3])
+			put(shape[3])
 
-def cmd_bus(cmd, prev_cmd, width, charwidth, data, outs):
+def cmd_bus(cmd, prev_cmd, width, charwidth, data, put):
 	assert(cmd in "=2345")
 	if len(data) > 0:
 		contents = data.pop(0)
@@ -141,22 +150,32 @@ def cmd_bus(cmd, prev_cmd, width, charwidth, data, outs):
 	space = width - 2
 	contents = contents[:min(len(contents), space)]
 	contents = "{: ^{}}".format(contents, space)
-	put_state(outs, "<")
+	put("<")
 	for c in contents:
-		for i in range(len(outs)):
-			outs[i] += c if i == len(outs) // 2 else " "
-	put_state(outs, ">")
+		put(c, raw_char=True)
+		# for i in range(len(outs)):
+		# 	outs[i] += c if i == len(outs) // 2 else " "
+	put(">")
 
-def cmd_separator(cmd, prev_cmd, width, charwidth, data, outs):
-	put_state(outs, "|")
+def cmd_separator(cmd, prev_cmd, width, charwidth, data, put):
+	put("|")
 
 
-def cmd_other(cmd, prev_cmd, width, charwidth, data, outs):
+def cmd_other(cmd, prev_cmd, width, charwidth, data, put):
 	for i in range(width):
-		put_state(outs, cmd.lower())
+		put(cmd.lower())
 
+# Create callback for appending some wave state's graphics to an array of strings
+def create_put(outs, graphics_map):
+	def put(c, raw_char=False):
+		for i in range(len(outs)):
+			if raw_char:
+				outs[i] += c if i == len(outs) // 2 else " "
+			else:
+				outs[i] += graphics_map[c][i]
+	return put
 
-def render_signal(wave, data, charwidth):
+def render_signal(wave, data, charwidth, graphics_map):
 	if not hasattr(render_signal, "handlers"):
 		render_signal.handlers = {}
 		for c in "1hHu0lLd":
@@ -170,7 +189,8 @@ def render_signal(wave, data, charwidth):
 		render_signal.handlers["|"] = cmd_separator
 	assert(charwidth >=4 and charwidth % 2 == 0)
 
-	outs = [""] * len(state_map[" "])
+	outs = [""] * len(graphics_map[" "])
+	put = create_put(outs, graphics_map)
 	if type(data) is str:
 		data = data.split()
 	else:
@@ -195,16 +215,17 @@ def render_signal(wave, data, charwidth):
 			else:
 				wstream = itertools.chain([next_cmd], wstream)
 				break
-		render_signal.handlers[cmd](cmd, prev_cmd, width, charwidth, data, outs)
+		render_signal.handlers[cmd](cmd, prev_cmd, width, charwidth, data, put)
 		if cmd != "|":
 			prev_cmd = cmd
 
 	return outs
 
-def render_json(s, out):
-	# Currently we spend ~95% of our time in the parser (?):
-	obj = json5.loads(s)
+def render_json(src, out, graphics):
+	# Currently we spend ~95% of our time in the JSON parser
+	obj = json5.loads(src)
 	jsonschema.Draft6Validator(wavejson_schema).validate(obj)
+	graphics_map = dict(zip(graphics[0], zip(*graphics[1:])))
 	# Find longest signal name, and handle config
 	max_name_len = 0
 	for s in obj["signal"]:
@@ -228,9 +249,9 @@ def render_json(s, out):
 		lead = max(lead, 0)
 		sig_lines = render_signal(
 			s["wave"] if "wave" in s else "",
-			s["data"] if "data" in s else [], charwidth)
+			s["data"] if "data" in s else [], charwidth, graphics_map)
 		for i, l in enumerate(sig_lines):
-			if i == len(state_map[" "]) - 1:
+			if i == len(graphics_map[" "]) - 1:
 				out.write(name_just)
 			else:
 				out.write(" " * len(name_just))
@@ -244,7 +265,14 @@ if __name__ == "__main__":
 	parser.add_argument("src", help="WaveJSON source file")
 	parser.add_argument("-w", "--watch", action="store_true",
 		help="Watch file, continuously update and redraw")
+	parser.add_argument("--graphics", choices=["default", "tiny", "tall"], default="default")
 	args = parser.parse_args()
+
+	graphics = {
+		"default": graphics_default,
+		"tiny": graphics_tiny,
+		"tall": graphics_tall
+	}[args.graphics]
 
 	if args.watch:
 		prev_src = None
@@ -255,7 +283,7 @@ if __name__ == "__main__":
 			if src != prev_src:
 				click.clear()
 				try:
-					render_json(src, sys.stdout)
+					render_json(src, sys.stdout, graphics)
 				except Exception:
 					traceback.print_exc(file=sys.stdout)
 				print("\nWatching file " + args.src)
@@ -264,4 +292,4 @@ if __name__ == "__main__":
 			time.sleep(0.2)
 	else:
 		ifile = open(args.src)
-		render_json(ifile.read(), sys.stdout)
+		render_json(ifile.read(), sys.stdout, graphics)
