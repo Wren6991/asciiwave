@@ -55,15 +55,15 @@ graphics_tiny = [
 
 graphics_default = [
 	"0+1-rfxz< >|UuDd",
-	" ┌─┐┏┓x_╱ ╲┆╭┄  ",
-	"─┘ └┛┗x ╲ ╱┆  ╰┄"
+	" ┌─┐┏┓x_╱‾╲┆╭┄  ",
+	"─┘ └┛┗x ╲_╱┆  ╰┄"
 ]
 
 graphics_tall = [
 	"0+1-rfxz< >|UuDd",
-	" ┌─┐┏┓x ╱ ╲┆╭┄  ",
-	" │ │┃┃x─   ┆┆ ┆ ",
-	"─┘ └┛┗x ╲ ╱┆  ╰┄"
+	" ┌─┐┏┓x ╱‾╲/╭┄  ",
+	" │ │┃┃x─   /┆ ┆ ",
+	"─┘ └┛┗x ╲_╱/  ╰┄"
 ]
 
 # Define the WaveJSON subset we support
@@ -169,7 +169,7 @@ def create_put(outs, graphics_map):
 	def put(c, raw_char=False):
 		for i in range(len(outs)):
 			if raw_char:
-				outs[i] += c if i == len(outs) // 2 else " "
+				outs[i] += c if i == len(outs) // 2 else graphics_map[' '][i]
 			else:
 				outs[i] += graphics_map[c][i]
 	return put
