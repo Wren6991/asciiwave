@@ -287,7 +287,7 @@ if __name__ == "__main__":
 	if args.watch:
 		prev_src = None
 		while True:
-			ifile = open(args.src)
+			ifile = open(args.src, encoding="utf-8")
 			src = ifile.read()
 			ifile.close()
 			if src != prev_src:
@@ -301,5 +301,5 @@ if __name__ == "__main__":
 				prev_src = src
 			time.sleep(0.2)
 	else:
-		ifile = open(args.src)
+		ifile = open(args.src, encoding="utf-8")
 		render_json(ifile.read(), sys.stdout, graphics, force_hscale=args.hscale)
