@@ -48,6 +48,11 @@ file changes. This can be used interactively alongside a text editor.
 """
 
 # First the key, then the graphics lines
+graphics_tiny2 = [
+	"0+1-rfxz< >|UuDd",
+	"_/‾\↑↓░Z{ }┆╭┄╰┄",
+]
+
 graphics_tiny = [
 	"0+1-rfxz< >|UuDd",
 	"_┌─┐┏┓xz< >┆╭┄╰┄",
@@ -272,7 +277,7 @@ if __name__ == "__main__":
 	parser.add_argument("src", help="WaveJSON source file")
 	parser.add_argument("-w", "--watch", action="store_true",
 		help="Watch file, continuously update and redraw")
-	parser.add_argument("-g", "--graphics", choices=["default", "tiny", "tall"],
+	parser.add_argument("-g", "--graphics", choices=["default", "tiny", "tall", "tiny2"],
 		default="default", help="Use a different graphics tileset")
 	parser.add_argument("--hscale", type=posint,
 		help="Force hscale to a different value than specified in src config.")
@@ -280,8 +285,9 @@ if __name__ == "__main__":
 
 	graphics = {
 		"default": graphics_default,
+		"tiny2": graphics_tiny2,
 		"tiny": graphics_tiny,
-		"tall": graphics_tall
+		"tall": graphics_tall,
 	}[args.graphics]
 
 	if args.watch:
