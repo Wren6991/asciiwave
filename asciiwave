@@ -203,10 +203,10 @@ def render_signal(wave, data, charwidth, graphics_map):
 
 	while True:
 		cmd = next(wstream, None)
-		if cmd not in valid_input:
-			raise ValueError(f"Invalid character in wave: {cmd}, valid characters are {valid_input}")
 		if cmd is None:
 			break
+		if cmd not in valid_input:
+			raise ValueError(f"Invalid character in wave: {cmd}, valid characters are {valid_input}")
 		if cmd == ".":
 			cmd = prev_cmd
 		if cmd not in render_signal.handlers:
