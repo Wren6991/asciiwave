@@ -47,6 +47,8 @@ file changes. This can be used interactively alongside a text editor.
 
 """
 
+valid_input = "1hHu0lLd pPnN =2345 zx |"
+
 # First the key, then the graphics lines
 graphics_tiny = [
 	"0+1-rfxz< >|UuDd",
@@ -201,6 +203,8 @@ def render_signal(wave, data, charwidth, graphics_map):
 
 	while True:
 		cmd = next(wstream, None)
+		if cmd not in valid_input:
+			raise ValueError(f"Invalid character in wave: {cmd}, valid characters are {valid_input}")
 		if cmd is None:
 			break
 		if cmd == ".":
