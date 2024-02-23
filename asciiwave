@@ -47,6 +47,8 @@ file changes. This can be used interactively alongside a text editor.
 
 """
 
+valid_input = "1hHu0lLd pPnN =2345 zx |"
+
 # First the key, then the graphics lines
 graphics_tiny = [
 	"0+1-rfxz< >|UuDd",
@@ -102,11 +104,13 @@ def cmd_10(cmd, prev_cmd, width, charwidth, data, put):
 	h_cmds = "1hHu"
 	l_cmds = "0lLd"
 	high = cmd in h_cmds
-	hard_edge = cmd in "HL" or \
-		(high and prev_cmd in (l_cmds + "zx=2345")) or \
-		(not high and prev_cmd in (h_cmds + "zx=2345")) or \
-		(cmd in "1h" and prev_cmd in "1pP") or \
-		(cmd in "0l" and prev_cmd in "0nN")
+	if high:
+		cmds_ending_low = l_cmds + "-pP" # p and P actually end low
+		transition = prev_cmd in cmds_ending_low
+	else:
+		cmds_ending_high = h_cmds + "+nN"
+		transition = prev_cmd in cmds_ending_high
+
 	if cmd == "u":
 		edge, flat = ("U", "u")
 	elif cmd == "d":
@@ -119,7 +123,7 @@ def cmd_10(cmd, prev_cmd, width, charwidth, data, put):
 		edge, flat = ("+", "1")
 	else:
 		edge, flat = ("-", "0")
-	rendered = edge * hard_edge + flat * (width - hard_edge)
+	rendered = edge * transition + flat * (width - transition)
 	for s in rendered:
 		put(s)
 
@@ -203,6 +207,8 @@ def render_signal(wave, data, charwidth, graphics_map):
 			break
 		if cmd == ".":
 			cmd = prev_cmd
+		if cmd not in valid_input:
+			raise ValueError(f"Invalid character in wave: {cmd}, valid characters are {valid_input}")
 		if cmd not in render_signal.handlers:
 			cmd = "x"
 		width = charwidth
